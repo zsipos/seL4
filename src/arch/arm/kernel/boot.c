@@ -104,6 +104,8 @@ BOOT_CODE static void init_irqs(cap_t root_cnode_cap)
 #ifdef CONFIG_ARM_SMMU
     setIRQState(IRQReserved, CORE_IRQ_TO_IDX(0, INTERRUPT_SMMU));
 #endif
+    setIRQTrigger(KERNEL_UART_IRQ, 1);
+    setIRQState(IRQReserved, KERNEL_UART_IRQ);
 
 #ifdef CONFIG_ARM_ENABLE_PMU_OVERFLOW_INTERRUPT
 #ifdef KERNEL_PMU_IRQ
@@ -589,6 +591,8 @@ BOOT_CODE VISIBLE void init_kernel(
     NODE_STATE(ksCurTime) = getCurrentTime();
     NODE_STATE(ksConsumed) = 0;
 #endif
+
+    init_serial();
     schedule();
     activateThread();
 }
