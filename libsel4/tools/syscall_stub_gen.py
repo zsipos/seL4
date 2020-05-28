@@ -271,7 +271,7 @@ def init_arch_types(wordsize):
             CapType("seL4_ARM_VCPU", wordsize),
             CapType("seL4_ARM_IOSpace", wordsize),
             CapType("seL4_ARM_IOPageTable", wordsize),
-            StructType("seL4_UserContext", wordsize * 18, wordsize),
+            StructType("seL4_UserContext", wordsize * 19, wordsize),
         ],
 
         "aarch64": [
@@ -300,7 +300,7 @@ def init_arch_types(wordsize):
             CapType("seL4_ARM_VCPU", wordsize),
             CapType("seL4_ARM_IOSpace", wordsize),
             CapType("seL4_ARM_IOPageTable", wordsize),
-            StructType("seL4_UserContext", wordsize * 18, wordsize),
+            StructType("seL4_UserContext", wordsize * 19, wordsize),
         ],
 
         "ia32": [
@@ -715,6 +715,11 @@ def generate_stub(arch, wordsize, interface_name, method_name, method_id, input_
         result.append("\tif (%s != seL4_NoError) {" % label)
         for i in range(num_mrs):
             result.append("\t\tseL4_SetMR(%d, mr%d);" % (i, i))
+        result.append("#ifdef CONFIG_KERNEL_INVOCATION_REPORT_ERROR_IPC")
+        result.append("\t\tif (seL4_CanPrintError()) {")
+        result.append("\t\t\tseL4_DebugPutString(seL4_GetDebugError());")
+        result.append("\t\t}")
+        result.append("#endif")
         if returning_struct:
             result.append("\t\treturn result;")
         result.append("\t}")
