@@ -27,7 +27,7 @@ if(KernelPlatformHWZsipos)
         list(APPEND KernelDTSList "src/plat/hw-zsipos/overlay-hw-zsipos.dts")
     endif()
     declare_default_headers(
-        TIMER_FREQUENCY 1000000llu PLIC_MAX_NUM_INT 8
+        TIMER_FREQUENCY 1000000llu PLIC_MAX_NUM_INT 16
         INTERRUPT_CONTROLLER drivers/irq/hw-zsipos.h
     )
 else()
