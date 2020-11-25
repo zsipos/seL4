@@ -139,10 +139,10 @@ finaliseCap_ret_t finaliseCap(cap_t cap, bool_t final, bool_t exposed)
             if (reply && reply->replyTCB) {
                 switch (thread_state_get_tsType(reply->replyTCB->tcbState)) {
                 case ThreadState_BlockedOnReply:
-                    reply_remove(reply);
+                    reply_remove(reply, reply->replyTCB);
                     break;
                 case ThreadState_BlockedOnReceive:
-                    reply_unlink(reply);
+                    reply_unlink(reply, reply->replyTCB);
                     break;
                 default:
                     fail("Invalid tcb state");
@@ -353,8 +353,10 @@ bool_t CONST sameRegionAs(cap_t cap_a, cap_t cap_b)
 #ifdef CONFIG_KERNEL_MCS
     case cap_sched_context_cap:
         if (cap_get_capType(cap_b) == cap_sched_context_cap) {
-            return cap_sched_context_cap_get_capSCPtr(cap_a) ==
-                   cap_sched_context_cap_get_capSCPtr(cap_b);
+            return (cap_sched_context_cap_get_capSCPtr(cap_a) ==
+                    cap_sched_context_cap_get_capSCPtr(cap_b)) &&
+                   (cap_sched_context_cap_get_capSCSizeBits(cap_a) ==
+                    cap_sched_context_cap_get_capSCSizeBits(cap_b));
         }
         break;
     case cap_sched_control_cap:
@@ -530,9 +532,9 @@ cap_t createObject(object_t t, void *regionBase, word_t userSize, bool_t deviceM
         SMP_COND_STATEMENT(tcb->tcbAffinity = getCurrentCPUIndex());
 #endif
 #ifdef CONFIG_DEBUG_BUILD
-        strlcpy(tcb->tcbName, "child of: '", TCB_NAME_LENGTH);
-        strlcat(tcb->tcbName, NODE_STATE(ksCurThread)->tcbName, TCB_NAME_LENGTH);
-        strlcat(tcb->tcbName, "'", TCB_NAME_LENGTH);
+        strlcpy(TCB_PTR_DEBUG_PTR(tcb)->tcbName, "child of: '", TCB_NAME_LENGTH);
+        strlcat(TCB_PTR_DEBUG_PTR(tcb)->tcbName, TCB_PTR_DEBUG_PTR(NODE_STATE(ksCurThread))->tcbName, TCB_NAME_LENGTH);
+        strlcat(TCB_PTR_DEBUG_PTR(tcb)->tcbName, "'", TCB_NAME_LENGTH);
         tcbDebugAppend(tcb);
 #endif /* CONFIG_DEBUG_BUILD */
 
@@ -715,6 +717,14 @@ exception_t decodeInvocation(word_t invLabel, word_t length,
                                    slot, excaps, call, buffer);
 
     case cap_domain_cap:
+#ifdef CONFIG_KERNEL_MCS
+        if (unlikely(firstPhase)) {
+            userError("Cannot invoke domain capabilities in the first phase of an invocation");
+            current_syscall_error.type = seL4_InvalidCapability;
+            current_syscall_error.invalidCapNumber = 0;
+            return EXCEPTION_SYSCALL_ERROR;
+        }
+#endif
         return decodeDomainInvocation(invLabel, length, excaps, buffer);
 
     case cap_cnode_cap:
@@ -751,6 +761,12 @@ exception_t decodeInvocation(word_t invLabel, word_t length,
         return decodeSchedControlInvocation(invLabel, cap, length, excaps, buffer);
 
     case cap_sched_context_cap:
+        if (unlikely(firstPhase)) {
+            userError("Cannot invoke sched context capabilities in the first phase of an invocation");
+            current_syscall_error.type = seL4_InvalidCapability;
+            current_syscall_error.invalidCapNumber = 0;
+            return EXCEPTION_SYSCALL_ERROR;
+        }
         return decodeSchedContextInvocation(invLabel, cap, excaps, buffer);
 #endif
     default:

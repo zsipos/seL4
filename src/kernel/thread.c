@@ -134,7 +134,7 @@ void doReplyTransfer(tcb_t *sender, tcb_t *receiver, cte_t *slot, bool_t grant)
     }
 
     tcb_t *receiver = reply->replyTCB;
-    reply_remove(reply);
+    reply_remove(reply, receiver);
     assert(thread_state_get_replyObject(receiver->tcbState) == REPLY_REF(0));
     assert(reply->replyTCB == NULL);
 #else
@@ -566,31 +566,31 @@ void postpone(sched_context_t *sc)
 void setNextInterrupt(void)
 {
     time_t next_interrupt = NODE_STATE(ksCurTime) +
-                            REFILL_HEAD(NODE_STATE(ksCurThread)->tcbSchedContext).rAmount;
+                            refill_head(NODE_STATE(ksCurThread)->tcbSchedContext)->rAmount;
 
     if (CONFIG_NUM_DOMAINS > 1) {
         next_interrupt = MIN(next_interrupt, NODE_STATE(ksCurTime) + ksDomainTime);
     }
 
     if (NODE_STATE(ksReleaseHead) != NULL) {
-        next_interrupt = MIN(REFILL_HEAD(NODE_STATE(ksReleaseHead)->tcbSchedContext).rTime, next_interrupt);
+        next_interrupt = MIN(refill_head(NODE_STATE(ksReleaseHead)->tcbSchedContext)->rTime, next_interrupt);
     }
 
     setDeadline(next_interrupt - getTimerPrecision());
 }
 
-void chargeBudget(ticks_t capacity, ticks_t consumed, bool_t canTimeoutFault, word_t core, bool_t isCurCPU)
+void chargeBudget(ticks_t consumed, bool_t canTimeoutFault, word_t core, bool_t isCurCPU)
 {
 
     if (isRoundRobin(NODE_STATE_ON_CORE(ksCurSC, core))) {
         assert(refill_size(NODE_STATE_ON_CORE(ksCurSC, core)) == MIN_REFILLS);
-        REFILL_HEAD(NODE_STATE_ON_CORE(ksCurSC, core)).rAmount += REFILL_TAIL(NODE_STATE_ON_CORE(ksCurSC, core)).rAmount;
-        REFILL_TAIL(NODE_STATE_ON_CORE(ksCurSC, core)).rAmount = 0;
+        refill_head(NODE_STATE_ON_CORE(ksCurSC, core))->rAmount += refill_tail(NODE_STATE_ON_CORE(ksCurSC, core))->rAmount;
+        refill_tail(NODE_STATE_ON_CORE(ksCurSC, core))->rAmount = 0;
     } else {
-        refill_budget_check(consumed, capacity);
+        refill_budget_check(consumed);
     }
 
-    assert(REFILL_HEAD(NODE_STATE_ON_CORE(ksCurSC, core)).rAmount >= MIN_BUDGET);
+    assert(refill_head(NODE_STATE_ON_CORE(ksCurSC, core))->rAmount >= MIN_BUDGET);
     NODE_STATE_ON_CORE(ksCurSC, core)->scConsumed += consumed;
     NODE_STATE_ON_CORE(ksConsumed, core) = 0;
     if (isCurCPU && likely(isSchedulable(NODE_STATE_ON_CORE(ksCurThread, core)))) {
@@ -603,7 +603,7 @@ void chargeBudget(ticks_t capacity, ticks_t consumed, bool_t canTimeoutFault, wo
 
 void endTimeslice(bool_t can_timeout_fault)
 {
-    if (can_timeout_fault && validTimeoutHandler(NODE_STATE(ksCurThread))) {
+    if (can_timeout_fault && !isRoundRobin(NODE_STATE(ksCurSC)) && validTimeoutHandler(NODE_STATE(ksCurThread))) {
         current_fault = seL4_Fault_Timeout_new(NODE_STATE(ksCurSC)->scBadge);
         handleTimeout(NODE_STATE(ksCurThread));
     } else if (refill_ready(NODE_STATE(ksCurSC)) && refill_sufficient(NODE_STATE(ksCurSC), 0)) {

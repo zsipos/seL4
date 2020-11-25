@@ -135,8 +135,8 @@ static inline void commitTime(void)
                 /* for round robin threads, there are only two refills: the HEAD, which is what
                  * we are consuming, and the tail, which is what we have consumed */
                 assert(refill_size(NODE_STATE(ksCurSC)) == MIN_REFILLS);
-                REFILL_HEAD(NODE_STATE(ksCurSC)).rAmount -= NODE_STATE(ksConsumed);
-                REFILL_TAIL(NODE_STATE(ksCurSC)).rAmount += NODE_STATE(ksConsumed);
+                refill_head(NODE_STATE(ksCurSC))->rAmount -= NODE_STATE(ksConsumed);
+                refill_tail(NODE_STATE(ksCurSC))->rAmount += NODE_STATE(ksConsumed);
             } else {
                 refill_split_check(NODE_STATE(ksConsumed));
             }
@@ -148,7 +148,11 @@ static inline void commitTime(void)
     if (CONFIG_NUM_DOMAINS > 1) {
         assert(ksDomainTime > NODE_STATE(ksConsumed));
         assert(ksDomainTime - NODE_STATE(ksConsumed) >= MIN_BUDGET);
-        ksDomainTime -= NODE_STATE(ksConsumed);
+        if (NODE_STATE(ksConsumed) < ksDomainTime) {
+            ksDomainTime -= NODE_STATE(ksConsumed);
+        } else {
+            ksDomainTime = 0;
+        }
     }
 
     NODE_STATE(ksConsumed) = 0llu;
@@ -217,7 +221,7 @@ static inline void updateRestartPC(tcb_t *tcb)
 void endTimeslice(bool_t can_timeout_fault);
 
 /* called when a thread has used up its head refill */
-void chargeBudget(ticks_t capacity, ticks_t consumed, bool_t canTimeoutFault, word_t core, bool_t isCurCPU);
+void chargeBudget(ticks_t consumed, bool_t canTimeoutFault, word_t core, bool_t isCurCPU);
 
 /* Update the kernels timestamp and stores in ksCurTime.
  * The difference between the previous kernel timestamp and the one just read
@@ -260,7 +264,7 @@ static inline bool_t checkBudget(void)
         return true;
     }
 
-    chargeBudget(capacity, NODE_STATE(ksConsumed), true, CURRENT_CPU_INDEX(), true);
+    chargeBudget(NODE_STATE(ksConsumed), true, CURRENT_CPU_INDEX(), true);
     return false;
 }
 
