@@ -26,8 +26,9 @@ if(KernelPlatformHWZsipos)
         list(APPEND KernelDTSList "tools/dts/hw-zsipos.dts")
         list(APPEND KernelDTSList "src/plat/hw-zsipos/overlay-hw-zsipos.dts")
     endif()
+    execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/getirqcount.py" OUTPUT_VARIABLE RISCV_IRQ_COUNT)
     declare_default_headers(
-        TIMER_FREQUENCY 1000000llu PLIC_MAX_NUM_INT 16
+        TIMER_FREQUENCY 1000000llu PLIC_MAX_NUM_INT "${RISCV_IRQ_COUNT}"
         INTERRUPT_CONTROLLER drivers/irq/hw-zsipos.h
     )
 else()
